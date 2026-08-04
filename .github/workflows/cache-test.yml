@@ -32,27 +32,38 @@ jobs:
             -H 'content-type: application/json' \
             -d '{"key":"test","version":"test","restore_keys":[]}' 2>&1 || echo "twirp curl failed with exit code $?"
 
+      - name: Debug env
+        run: |
+          env | grep -i ACTIONS | sort
+
       - name: Test S3 upload from sandbox
         run: |
           echo "Testing S3 connectivity from sandbox..."
-          curl -v --max-time 10 -X HEAD "https://s3-us-north-1.qiniucs.com/mww-dal-test" 2>&1 || echo "HEAD bucket failed (expected for presigned auth)"
+          # Test basic S3 connectivity
+          curl -sI --max-time 10 "https://s3-us-north-1.qiniucs.com" 2>&1 | head -5 || echo "S3 endpoint unreachable"
           echo "---"
-          echo "Creating test file..."
-          echo 'hello cache test' > /tmp/test-upload.txt
-          echo "Getting presigned URL from runnerd..."
-          # Use the runner token to call CreateCacheEntry
-          TOKEN="${ACTIONS_RUNTIME_TOKEN:-${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}}"
-          RESP=$(curl -s --max-time 10 -X POST "${ACTIONS_RESULTS_URL}/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry" \
-            -H 'content-type: application/json' \
-            -H "authorization: bearer ${TOKEN}" \
-            -d '{"key":"manual-test-1","version":"v1"}')
-          echo "CreateCacheEntry response: ${RESP}"
-          UPLOAD_URL=$(echo "${RESP}" | grep -o '"signed_upload_url":"[^"]*"' | sed 's/"signed_upload_url":"//;s/"$//')
-          if [ -n "$UPLOAD_URL" ]; then
-            echo "Uploading to presigned URL..."
-            curl -v --max-time 30 -X PUT -T /tmp/test-upload.txt "$UPLOAD_URL" 2>&1 || echo "Upload failed"
+          # Try to get presigned URL using node
+          TOKEN=$(node -e "try{console.log(process.env.ACTIONS_RUNTIME_TOKEN||'')}catch(e){console.log('')}")
+          if [ -z "$TOKEN" ]; then
+            TOKEN=$(node -e "try{console.log(process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN||'')}catch(e){console.log('')}")
+          fi
+          echo "Token length: ${#TOKEN}"
+          if [ -n "$TOKEN" ]; then
+            RESP=$(curl -s --max-time 10 -X POST "${ACTIONS_RESULTS_URL}/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry" \
+              -H 'content-type: application/json' \
+              -H "authorization: bearer ${TOKEN}" \
+              -d '{"key":"manual-test-1","version":"v1"}')
+            echo "CreateCacheEntry response: ${RESP}"
+            UPLOAD_URL=$(echo "${RESP}" | node -e "const d=[];process.stdin.on('data',c=>d.push(c));process.stdin.on('end',()=>{try{const j=JSON.parse(d.join(''));console.log(j.signed_upload_url||'')}catch(e){console.log('')}})")
+            if [ -n "$UPLOAD_URL" ]; then
+              echo "Uploading test file to presigned URL..."
+              echo 'hello cache test' > /tmp/test-upload.txt
+              curl -v --max-time 30 -X PUT -H 'content-type: application/octet-stream' -T /tmp/test-upload.txt "$UPLOAD_URL" 2>&1
+            else
+              echo "No upload URL received"
+            fi
           else
-            echo "No upload URL received"
+            echo "No token available in shell env"
           fi
 
       - name: Set up Go
