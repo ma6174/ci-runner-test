@@ -10,6 +10,8 @@ on:
 jobs:
   test-cache:
     runs-on: [qiniu, ubuntu-22.04]
+    env:
+      GOPATH: /home/runner/go
     steps:
       - name: Checkout
         uses: actions/checkout@v4
