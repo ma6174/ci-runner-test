@@ -32,6 +32,29 @@ jobs:
             -H 'content-type: application/json' \
             -d '{"key":"test","version":"test","restore_keys":[]}' 2>&1 || echo "twirp curl failed with exit code $?"
 
+      - name: Test S3 upload from sandbox
+        run: |
+          echo "Testing S3 connectivity from sandbox..."
+          curl -v --max-time 10 -X HEAD "https://s3-us-north-1.qiniucs.com/mww-dal-test" 2>&1 || echo "HEAD bucket failed (expected for presigned auth)"
+          echo "---"
+          echo "Creating test file..."
+          echo 'hello cache test' > /tmp/test-upload.txt
+          echo "Getting presigned URL from runnerd..."
+          # Use the runner token to call CreateCacheEntry
+          TOKEN="${ACTIONS_RUNTIME_TOKEN:-${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}}"
+          RESP=$(curl -s --max-time 10 -X POST "${ACTIONS_RESULTS_URL}/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry" \
+            -H 'content-type: application/json' \
+            -H "authorization: bearer ${TOKEN}" \
+            -d '{"key":"manual-test-1","version":"v1"}')
+          echo "CreateCacheEntry response: ${RESP}"
+          UPLOAD_URL=$(echo "${RESP}" | grep -o '"signed_upload_url":"[^"]*"' | sed 's/"signed_upload_url":"//;s/"$//')
+          if [ -n "$UPLOAD_URL" ]; then
+            echo "Uploading to presigned URL..."
+            curl -v --max-time 30 -X PUT -T /tmp/test-upload.txt "$UPLOAD_URL" 2>&1 || echo "Upload failed"
+          else
+            echo "No upload URL received"
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
