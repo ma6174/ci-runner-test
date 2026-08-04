@@ -22,6 +22,16 @@ jobs:
           echo "ACTIONS_CACHE_SERVICE_V2=${ACTIONS_CACHE_SERVICE_V2:-<not set>}"
           echo "Runner labels: $(uname -a)"
 
+      - name: Test cache endpoint reachability
+        run: |
+          echo "Testing connectivity to ACTIONS_RESULTS_URL..."
+          curl -v --max-time 10 "${ACTIONS_RESULTS_URL}/healthz" 2>&1 || echo "curl failed with exit code $?"
+          echo "---"
+          echo "Testing twirp endpoint..."
+          curl -v --max-time 10 -X POST "${ACTIONS_RESULTS_URL}/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL" \
+            -H 'content-type: application/json' \
+            -d '{"key":"test","version":"test","restore_keys":[]}' 2>&1 || echo "twirp curl failed with exit code $?"
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
