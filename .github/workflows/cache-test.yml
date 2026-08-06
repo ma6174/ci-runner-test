@@ -1,9 +1,7 @@
-name: Go Cache V2 Test
+name: Go Cache S3 Test
 
 on:
   push:
-    branches: [develop]
-  pull_request:
     branches: [develop]
   workflow_dispatch:
 
@@ -20,57 +18,30 @@ jobs:
         run: |
           echo "ACTIONS_RESULTS_URL=${ACTIONS_RESULTS_URL:-<not set>}"
           echo "ACTIONS_CACHE_SERVICE_V2=${ACTIONS_CACHE_SERVICE_V2:-<not set>}"
+          echo "RUNS_ON_S3_BUCKET_CACHE=${RUNS_ON_S3_BUCKET_CACHE:-<not set>}"
+          echo "RUNS_ON_AWS_REGION=${RUNS_ON_AWS_REGION:-<not set>}"
+          echo "RUNS_ON_S3_BUCKET_ENDPOINT=${RUNS_ON_S3_BUCKET_ENDPOINT:-<not set>}"
+          echo "RUNS_ON_S3_CACHE_REPO_PREFIX=${RUNS_ON_S3_CACHE_REPO_PREFIX:-<not set>}"
+          echo "AWS_ACCESS_KEY_ID length=${#AWS_ACCESS_KEY_ID}"
+          echo "AWS_SESSION_TOKEN length=${#AWS_SESSION_TOKEN}"
           echo "Runner labels: $(uname -a)"
-
-      - name: Test cache endpoint reachability
-        run: |
-          echo "Testing connectivity to ACTIONS_RESULTS_URL..."
-          curl -v --max-time 10 "${ACTIONS_RESULTS_URL}/healthz" 2>&1 || echo "curl failed with exit code $?"
-          echo "---"
-          echo "Testing twirp endpoint..."
-          curl -v --max-time 10 -X POST "${ACTIONS_RESULTS_URL}/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL" \
-            -H 'content-type: application/json' \
-            -d '{"key":"test","version":"test","restore_keys":[]}' 2>&1 || echo "twirp curl failed with exit code $?"
-
-      - name: Debug env
-        run: |
-          env | grep -i ACTIONS | sort
-
-      - name: Test S3 upload from sandbox
-        run: |
-          echo "Testing S3 connectivity from sandbox..."
-          # Test basic S3 connectivity
-          curl -sI --max-time 10 "https://s3-us-north-1.qiniucs.com" 2>&1 | head -5 || echo "S3 endpoint unreachable"
-          echo "---"
-          # Try to get presigned URL using node
-          TOKEN=$(node -e "try{console.log(process.env.ACTIONS_RUNTIME_TOKEN||'')}catch(e){console.log('')}")
-          if [ -z "$TOKEN" ]; then
-            TOKEN=$(node -e "try{console.log(process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN||'')}catch(e){console.log('')}")
-          fi
-          echo "Token length: ${#TOKEN}"
-          if [ -n "$TOKEN" ]; then
-            RESP=$(curl -s --max-time 10 -X POST "${ACTIONS_RESULTS_URL}/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry" \
-              -H 'content-type: application/json' \
-              -H "authorization: bearer ${TOKEN}" \
-              -d '{"key":"manual-test-1","version":"v1"}')
-            echo "CreateCacheEntry response: ${RESP}"
-            UPLOAD_URL=$(echo "${RESP}" | node -e "const d=[];process.stdin.on('data',c=>d.push(c));process.stdin.on('end',()=>{try{const j=JSON.parse(d.join(''));console.log(j.signed_upload_url||'')}catch(e){console.log('')}})")
-            if [ -n "$UPLOAD_URL" ]; then
-              echo "Uploading test file to presigned URL..."
-              echo 'hello cache test' > /tmp/test-upload.txt
-              curl -v --max-time 30 -X PUT -H 'content-type: application/octet-stream' -T /tmp/test-upload.txt "$UPLOAD_URL" 2>&1
-            else
-              echo "No upload URL received"
-            fi
-          else
-            echo "No token available in shell env"
-          fi
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-          cache: true
+          cache: false
+
+      - name: Cache Go modules (S3 direct)
+        id: cache
+        uses: runs-on/cache@v5
+        with:
+          path: |
+            /home/runner/go/pkg/mod
+            /home/runner/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Go module download
         run: go mod download
