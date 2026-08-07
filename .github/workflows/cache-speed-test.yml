@@ -7,10 +7,6 @@ on:
 # download job restores the same object in a fresh sandbox.
 env:
   CACHE_KEY: cache-speed-1gb-${{ github.run_id }}
-  UPLOAD_QUEUE_SIZE: "8"
-  UPLOAD_PART_SIZE: "32"
-  DOWNLOAD_QUEUE_SIZE: "8"
-  DOWNLOAD_PART_SIZE: "16"
 
 jobs:
   upload:
@@ -22,7 +18,8 @@ jobs:
           echo "region=$RUNS_ON_AWS_REGION"
           echo "endpoint=$RUNS_ON_S3_BUCKET_ENDPOINT"
           echo "prefix=$RUNS_ON_S3_CACHE_REPO_PREFIX"
-          echo "upload_queue=$UPLOAD_QUEUE_SIZE upload_part_mib=$UPLOAD_PART_SIZE"
+          echo "upload_queue=${UPLOAD_QUEUE_SIZE:-default} upload_part_mib=${UPLOAD_PART_SIZE:-default}"
+          echo "download_queue=${DOWNLOAD_QUEUE_SIZE:-default} download_part_mib=${DOWNLOAD_PART_SIZE:-default}"
 
       - name: Generate 1 GiB incompressible payload
         run: |
@@ -50,8 +47,8 @@ jobs:
     steps:
       - name: Show cache endpoint
         run: |
-          echo "upload/download queue=$UPLOAD_QUEUE_SIZE/$DOWNLOAD_QUEUE_SIZE"
-          echo "download_part_mib=$DOWNLOAD_PART_SIZE"
+          echo "upload_queue=${UPLOAD_QUEUE_SIZE:-default} download_queue=${DOWNLOAD_QUEUE_SIZE:-default}"
+          echo "upload_part_mib=${UPLOAD_PART_SIZE:-default} download_part_mib=${DOWNLOAD_PART_SIZE:-default}"
 
       - name: Cache download (runs-on/cache concurrent range requests)
         id: cache-download
