@@ -1,0 +1,67 @@
+name: Cache S3 1GB Speed Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  speed-test:
+    runs-on: [qiniu, ubuntu-22.04]
+    steps:
+      - name: Show cache endpoint
+        run: |
+          echo "bucket=$RUNS_ON_S3_BUCKET_CACHE"
+          echo "region=$RUNS_ON_AWS_REGION"
+          echo "endpoint=$RUNS_ON_S3_BUCKET_ENDPOINT"
+          echo "prefix=$RUNS_ON_S3_CACHE_REPO_PREFIX"
+
+      - name: Generate 1 GiB compressed package
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cache-speed
+          echo "Generating 1 GiB random payload and gzip archive..."
+          dd if=/dev/urandom bs=1M count=1024 status=progress | gzip -1 > /tmp/cache-speed/test-1gb.gz
+          stat -c 'archive_bytes=%s' /tmp/cache-speed/test-1gb.gz
+
+      - name: Upload archive and measure speed
+        run: |
+          set -euo pipefail
+          endpoint="$RUNS_ON_S3_BUCKET_ENDPOINT"
+          case "$endpoint" in http://*|https://*) ;; *) endpoint="https://$endpoint" ;; esac
+          key="$RUNS_ON_S3_CACHE_REPO_PREFIX/speed-test/${GITHUB_RUN_ID}/test-1gb.gz"
+          bytes=$(stat -c %s /tmp/cache-speed/test-1gb.gz)
+          start=$(date +%s%N)
+          aws s3 cp /tmp/cache-speed/test-1gb.gz "s3://$RUNS_ON_S3_BUCKET_CACHE/$key" \
+            --endpoint-url "$endpoint" --region "$RUNS_ON_AWS_REGION"
+          end=$(date +%s%N)
+          elapsed_ns=$((end-start))
+          elapsed=$(awk "BEGIN { printf \"%.3f\", $elapsed_ns / 1000000000 }")
+          speed=$(awk "BEGIN { printf \"%.2f\", $bytes / 1048576 / ($elapsed_ns / 1000000000) }")
+          echo "UPLOAD bytes=$bytes elapsed_seconds=$elapsed speed_mib_per_sec=$speed key=$key"
+
+      - name: Download archive and measure speed
+        run: |
+          set -euo pipefail
+          endpoint="$RUNS_ON_S3_BUCKET_ENDPOINT"
+          case "$endpoint" in http://*|https://*) ;; *) endpoint="https://$endpoint" ;; esac
+          key="$RUNS_ON_S3_CACHE_REPO_PREFIX/speed-test/${GITHUB_RUN_ID}/test-1gb.gz"
+          start=$(date +%s%N)
+          aws s3 cp "s3://$RUNS_ON_S3_BUCKET_CACHE/$key" /tmp/cache-speed/test-1gb-downloaded.gz \
+            --endpoint-url "$endpoint" --region "$RUNS_ON_AWS_REGION"
+          end=$(date +%s%N)
+          bytes=$(stat -c %s /tmp/cache-speed/test-1gb-downloaded.gz)
+          elapsed_ns=$((end-start))
+          elapsed=$(awk "BEGIN { printf \"%.3f\", $elapsed_ns / 1000000000 }")
+          speed=$(awk "BEGIN { printf \"%.2f\", $bytes / 1048576 / ($elapsed_ns / 1000000000) }")
+          cmp /tmp/cache-speed/test-1gb.gz /tmp/cache-speed/test-1gb-downloaded.gz
+          echo "DOWNLOAD bytes=$bytes elapsed_seconds=$elapsed speed_mib_per_sec=$speed"
+
+      - name: Delete speed-test object
+        if: always()
+        run: |
+          set -euo pipefail
+          endpoint="$RUNS_ON_S3_BUCKET_ENDPOINT"
+          case "$endpoint" in http://*|https://*) ;; *) endpoint="https://$endpoint" ;; esac
+          key="$RUNS_ON_S3_CACHE_REPO_PREFIX/speed-test/${GITHUB_RUN_ID}/test-1gb.gz"
+          aws s3 rm "s3://$RUNS_ON_S3_BUCKET_CACHE/$key" \
+            --endpoint-url "$endpoint" --region "$RUNS_ON_AWS_REGION" || true
+          rm -rf /tmp/cache-speed
