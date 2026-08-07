@@ -1,0 +1,48 @@
+name: GitHub Official Cache 1GB Speed Test
+
+on:
+  workflow_dispatch:
+
+env:
+  CACHE_KEY: gh-official-cache-1gb-${{ github.run_id }}
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate 1 GiB incompressible payload
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cache-speed
+          echo "Generating 1 GiB payload..."
+          dd if=/dev/urandom of=/tmp/cache-speed/payload.bin bs=1M count=1024 status=progress
+          stat -c 'payload_bytes=%s' /tmp/cache-speed/payload.bin
+
+      - name: Cache upload (actions/cache)
+        id: cache-upload
+        uses: actions/cache@v4
+        with:
+          path: /tmp/cache-speed/payload.bin
+          key: ${{ env.CACHE_KEY }}
+
+      - name: Note
+        run: echo "The actions/cache post step uploads after this step."
+
+  download:
+    needs: upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache download (actions/cache)
+        id: cache-download
+        uses: actions/cache@v4
+        with:
+          path: /tmp/cache-speed/payload.bin
+          key: ${{ env.CACHE_KEY }}
+          fail-on-cache-miss: true
+
+      - name: Verify restored payload
+        run: |
+          set -euo pipefail
+          stat -c 'restored_bytes=%s' /tmp/cache-speed/payload.bin
+          test "$(stat -c %s /tmp/cache-speed/payload.bin)" -eq 1073741824
+          sha256sum /tmp/cache-speed/payload.bin
