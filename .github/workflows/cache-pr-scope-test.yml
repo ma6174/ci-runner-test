@@ -1,0 +1,39 @@
+name: Go Cache S3 PR Scope Test
+
+on:
+  pull_request:
+    branches: [develop]
+
+jobs:
+  test-pr-cache-scope:
+    runs-on: [qiniu, ubuntu-22.04]
+    env:
+      GOPATH: /home/runner/go
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show scoped cache environment
+        run: |
+          echo "RUNS_ON_S3_CACHE_READ_PREFIXES=${RUNS_ON_S3_CACHE_READ_PREFIXES:-<not set>}"
+          echo "RUNS_ON_S3_CACHE_WRITE_PREFIX=${RUNS_ON_S3_CACHE_WRITE_PREFIX:-<not set>}"
+          echo "AWS_SESSION_TOKEN length=${#AWS_SESSION_TOKEN}"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: false
+
+      - name: Restore and save PR-scoped cache
+        uses: ma6174/cache@v5-qiniu
+        with:
+          path: |
+            /home/runner/go/pkg/mod
+            /home/runner/.cache/go-build
+          # A new run ID guarantees a miss on the PR scope. The broad restore
+          # key still permits a base-branch fallback before post-job save.
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - run: go mod download && go build -v ./... && ./ci-runner-test
