@@ -21,7 +21,8 @@ jobs:
           echo "RUNS_ON_S3_BUCKET_CACHE=${RUNS_ON_S3_BUCKET_CACHE:-<not set>}"
           echo "RUNS_ON_AWS_REGION=${RUNS_ON_AWS_REGION:-<not set>}"
           echo "RUNS_ON_S3_BUCKET_ENDPOINT=${RUNS_ON_S3_BUCKET_ENDPOINT:-<not set>}"
-          echo "RUNS_ON_S3_CACHE_REPO_PREFIX=${RUNS_ON_S3_CACHE_REPO_PREFIX:-<not set>}"
+          echo "RUNS_ON_S3_CACHE_READ_PREFIXES=${RUNS_ON_S3_CACHE_READ_PREFIXES:-<not set>}"
+          echo "RUNS_ON_S3_CACHE_WRITE_PREFIX=${RUNS_ON_S3_CACHE_WRITE_PREFIX:-<not set>}"
           echo "AWS_ACCESS_KEY_ID length=${#AWS_ACCESS_KEY_ID}"
           echo "AWS_SESSION_TOKEN length=${#AWS_SESSION_TOKEN}"
           echo "Runner labels: $(uname -a)"
@@ -34,7 +35,7 @@ jobs:
 
       - name: Cache Go modules (S3 direct)
         id: cache
-        uses: runs-on/cache@v5
+        uses: ma6174/cache@v5-qiniu
         with:
           path: |
             /home/runner/go/pkg/mod
