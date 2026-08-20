@@ -39,7 +39,7 @@ jobs:
 
       - name: Cache Go modules (S3 direct)
         id: cache
-        uses: qiniu/actions-cache@v5
+        uses: qiniu/actions-cache@57e05e7
         with:
           path: |
             /home/runner/go/pkg/mod
