@@ -1,4 +1,4 @@
-name: Cache S3 1GB Speed Test (runs-on/cache)
+name: Cache S3 1GB Speed Test (qiniu/actions-cache)
 
 on:
   workflow_dispatch:
@@ -17,7 +17,8 @@ jobs:
           echo "bucket=$RUNS_ON_S3_BUCKET_CACHE"
           echo "region=$RUNS_ON_AWS_REGION"
           echo "endpoint=$RUNS_ON_S3_BUCKET_ENDPOINT"
-          echo "prefix=$RUNS_ON_S3_CACHE_REPO_PREFIX"
+          echo "read_prefixes=${RUNS_ON_S3_CACHE_READ_PREFIXES:-<not set>}"
+          echo "write_prefix=${RUNS_ON_S3_CACHE_WRITE_PREFIX:-<not set>}"
           echo "upload_queue=${UPLOAD_QUEUE_SIZE:-default} upload_part_mib=${UPLOAD_PART_SIZE:-default}"
           echo "download_queue=${DOWNLOAD_QUEUE_SIZE:-default} download_part_mib=${DOWNLOAD_PART_SIZE:-default}"
 
@@ -29,16 +30,16 @@ jobs:
           dd if=/dev/urandom of=/tmp/cache-speed/payload.bin bs=1M count=1024 status=progress
           stat -c 'payload_bytes=%s' /tmp/cache-speed/payload.bin
 
-      - name: Cache upload (runs-on/cache multipart and concurrent)
+      - name: Cache upload (qiniu/actions-cache multipart and concurrent)
         id: cache-upload
-        uses: runs-on/cache@v5
+        uses: qiniu/actions-cache@v5
         with:
           path: /tmp/cache-speed/payload.bin
           key: ${{ env.CACHE_KEY }}
 
       - name: Wait for cache post-step
         run: |
-          echo "The runs-on/cache post step uploads the archive after this step."
+          echo "The qiniu/actions-cache post step uploads the archive after this step."
           date -u +%Y-%m-%dT%H:%M:%SZ
 
   download:
@@ -50,9 +51,9 @@ jobs:
           echo "upload_queue=${UPLOAD_QUEUE_SIZE:-default} download_queue=${DOWNLOAD_QUEUE_SIZE:-default}"
           echo "upload_part_mib=${UPLOAD_PART_SIZE:-default} download_part_mib=${DOWNLOAD_PART_SIZE:-default}"
 
-      - name: Cache download (runs-on/cache concurrent range requests)
+      - name: Cache download (qiniu/actions-cache concurrent range requests)
         id: cache-download
-        uses: runs-on/cache@v5
+        uses: qiniu/actions-cache@v5
         with:
           path: /tmp/cache-speed/payload.bin
           key: ${{ env.CACHE_KEY }}

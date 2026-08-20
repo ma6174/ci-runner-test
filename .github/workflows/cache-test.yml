@@ -27,6 +27,8 @@ jobs:
           echo "RUNS_ON_S3_CACHE_WRITE_PREFIX=${RUNS_ON_S3_CACHE_WRITE_PREFIX:-<not set>}"
           echo "AWS_ACCESS_KEY_ID length=${#AWS_ACCESS_KEY_ID}"
           echo "AWS_SESSION_TOKEN length=${#AWS_SESSION_TOKEN}"
+          echo "RUNS_ON_S3_ACCESS_KEY_ID length=${#RUNS_ON_S3_ACCESS_KEY_ID}"
+          echo "RUNS_ON_S3_SESSION_TOKEN length=${#RUNS_ON_S3_SESSION_TOKEN}"
           echo "Runner labels: $(uname -a)"
 
       - name: Set up Go
@@ -37,7 +39,7 @@ jobs:
 
       - name: Cache Go modules (S3 direct)
         id: cache
-        uses: ma6174/cache@v5-qiniu
+        uses: qiniu/actions-cache@v5
         with:
           path: |
             /home/runner/go/pkg/mod
