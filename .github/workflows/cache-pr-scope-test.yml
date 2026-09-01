@@ -25,7 +25,7 @@ jobs:
           cache: false
 
       - name: Restore and save PR-scoped cache
-        uses: ma6174/cache@v5-qiniu
+        uses: qiniu/actions-cache@v5
         with:
           path: |
             /home/runner/go/pkg/mod
